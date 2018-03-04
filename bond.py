@@ -74,8 +74,8 @@ class SolveBondQTSM(object):
         temp_init = self.Y0.eval()[0]
         self.loss_history.append(temp_loss)
         self.init_history.append(temp_init)
-        print "step: %5u, loss: %.4e, " % (0, temp_loss) + \
-              "Y0: %.4e, runtime: %4u" % (temp_init, time.time() - start_time + self.t_bd)
+        print("step: %5u, loss: %.4e, " % (0, temp_loss) + \
+              "Y0: %.4e, runtime: %4u" % (temp_init, time.time() - start_time + self.t_bd))
 
         # begin sgd iteration
         for _ in range(self.n_maxstep + 1):
@@ -87,12 +87,12 @@ class SolveBondQTSM(object):
                 temp_init = self.Y0.eval()[0]
                 self.loss_history.append(temp_loss)
                 self.init_history.append(temp_init)
-                print "step: %5u, loss: %.4e, " % (step, temp_loss) + \
-                    "Y0: %.4e, runtime: %4u" % (temp_init, time.time() - start_time + self.t_bd)
+                print("step: %5u, loss: %.4e, " % (step, temp_loss) + \
+                    "Y0: %.4e, runtime: %4u" % (temp_init, time.time() - start_time + self.t_bd))
 
             step += 1
         end_time = time.time()
-        print "running time: %.3f s" % (end_time - start_time + self.t_bd)
+        print("running time: %.3f s" % (end_time - start_time + self.t_bd))
 
     def build(self):
         start_time = time.time()
@@ -188,7 +188,7 @@ def main():
     tf.reset_default_graph()
     with tf.Session() as sess:
         tf.set_random_seed(1)
-        print "Begin to solve Bond Price under QTSM"
+        print("Begin to solve Bond Price under QTSM")
         model = SolveBondQTSM(sess)
         model.build()
         model.train()

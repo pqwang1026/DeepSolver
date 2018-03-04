@@ -57,8 +57,8 @@ class SolveAllenCahn(object):
         temp_init = self.Y0.eval()[0]
         self.loss_history.append(temp_loss)
         self.init_history.append(temp_init)
-        print "step: %5u, loss: %.4e, " % (0, temp_loss) + \
-              "Y0: %.4e, runtime: %4u" % (temp_init, time.time() - start_time + self.t_bd)
+        print("step: %5u, loss: %.4e, " % (0, temp_loss) + \
+              "Y0: %.4e, runtime: %4u" % (temp_init, time.time() - start_time + self.t_bd))
 
         # begin sgd iteration
         for _ in range(self.n_maxstep + 1):
@@ -70,13 +70,13 @@ class SolveAllenCahn(object):
                 temp_init = self.Y0.eval()[0]
                 self.loss_history.append(temp_loss)
                 self.init_history.append(temp_init)
-                print "step: %5u, loss: %.4e, " % (step, temp_loss) + \
-                    "Y0: %.4e, runtime: %4u" % (temp_init, time.time() - start_time + self.t_bd)
+                print("step: %5u, loss: %.4e, " % (step, temp_loss) + \
+                    "Y0: %.4e, runtime: %4u" % (temp_init, time.time() - start_time + self.t_bd))
 
             step += 1
 
         end_time = time.time()
-        print "running time: %.3f s" % (end_time - start_time + self.t_bd)
+        print("running time: %.3f s" % (end_time - start_time + self.t_bd))
 
     def build(self):
         start_time = time.time()
@@ -90,7 +90,7 @@ class SolveAllenCahn(object):
         Y = self.allones * self.Y0
         Z = tf.matmul(self.allones, self.Z0)
         with tf.variable_scope('forward'):
-            for t in xrange(0, self.n_time - 1):
+            for t in range(0, self.n_time - 1):
                 Y = Y - self.f_tf(self.t_stamp[t], self.X[:, :, t], Y, Z) * self.h
                 Y = Y + tf.reduce_sum(Z * self.dW[:, :, t], 1, keepdims=True)
                 Z = self._one_time_net(self.X[:, :, t + 1], str(t + 1)) / self.d
@@ -162,7 +162,7 @@ def main():
     tf.reset_default_graph()
     with tf.Session() as sess:
         tf.set_random_seed(1)
-        print "Begin to solve Allen -Cahn Equation"
+        print("Begin to solve Allen -Cahn Equation")
         model = SolveAllenCahn(sess)
         model.build()
         model.train()
