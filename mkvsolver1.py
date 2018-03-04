@@ -10,7 +10,7 @@ from tensorflow import constant_initializer as const_init
 
 
 class SolverMKV1:
-    def __init__(self, sess, equation, T, Nt, NDirac, x0_mean, x0_var):
+    def __init__(self, sess, equation, T, Nt, x0_mean, x0_var):
         # initial condition and horizon
         self.x0_mean = x0_mean
         self.x0_var = x0_var
@@ -27,7 +27,6 @@ class SolverMKV1:
         self.Ny = equation.Ny
         self.Nt = Nt
 
-        self.NDirac = NDirac  # bandwidth of gaussian density approximating Dirac measure
         self.dx = equation.dx
         self.dy = equation.dy
         self.h = (T + 0.0) / Nt
@@ -52,9 +51,7 @@ class SolverMKV1:
         # useful tensors
         self.Px0 = tf.exp(-(self.x_grid-self.x0_mean) ** 2 / 2 / self.x0_var) / np.sqrt(2.0 * np.pi * self.x0_var)
         self.dW = tf.placeholder(tf.float64, [None, self.Nt], name='dW')
-        self.X0 = tf.placeholder(tf.float64, [None, 1], name = 'X0')
-        self.concat_operator_grid = tf.placeholder(tf.float64, [None, None], name = 'ConcatOperator1')
-        self.concat_operator_sample = tf.placeholder(tf.float64, [None, None], name = 'ConcatOperator2')
+        self.X0 = tf.placeholder(tf.float64, [None, 1], name='X0')
         self.initial_loss = tf.constant([0], dtype=tf.float64, shape=[1])
         self.is_training = tf.placeholder(tf.bool)
 
