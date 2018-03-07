@@ -24,36 +24,31 @@ class SolverMKV1:
 
         # parameters for construct the grid of time and grid of space
         self.Nx = equation.Nx
-        self.Ny = equation.Ny
         self.Nt = Nt
 
         self.dx = equation.dx
-        self.dy = equation.dy
         self.h = (T + 0.0) / Nt
         self.sqrth = np.sqrt(self.h)
         self.t_grid = tf.constant(np.linspace(0, T, Nt + 1), dtype=tf.float64, shape=(Nt + 1, 1))
         self.x_grid = equation.x_grid
-        self.y_grid = equation.y_grid
-        self.x_grid_2d = tf.matmul(self.x_grid, tf.ones(shape=(1, (self.Ny + 2)), dtype=tf.float64))
-        self.y_grid_2d = tf.matmul(tf.ones(shape=((self.Nx + 2), 1), dtype=tf.float64), self.y_grid, transpose_b=True)
 
         # parameters for neural network and gradient descent
         self.n_layer = 4
         self.n_neuron = [1, 1 + 10, 1 + 10, 1]
         self.batch_size = 64
         self.valid_size = 256
-        self.n_maxstep = 16000
+        self.n_maxstep = 20000
         self.n_displaystep = 50
         self.learning_rate = 5e-4
         self._extra_train_ops = []
 
-
         # useful tensors
-        self.Px0 = tf.exp(-(self.x_grid-self.x0_mean) ** 2 / 2 / self.x0_var) / np.sqrt(2.0 * np.pi * self.x0_var)
+        self.Px0 = tf.exp(-(self.x_grid-self.x0_mean) ** 2 / 2.0 / self.x0_var) / np.sqrt(2.0 * np.pi * self.x0_var)
         self.dW = tf.placeholder(tf.float64, [None, self.Nt], name='dW')
         self.X0 = tf.placeholder(tf.float64, [None, 1], name='X0')
         self.initial_loss = tf.constant([0], dtype=tf.float64, shape=[1])
         self.is_training = tf.placeholder(tf.bool)
+        self.allones_m = tf.ones(shape=tf.stack([tf.shape(self.dW)[0] + self.Nx + 2, 1]), dtype=tf.float64)
 
         # timing
         self.time_build = 0
@@ -82,7 +77,9 @@ class SolverMKV1:
         with tf.variable_scope(name):
             w = tf.get_variable('Weight', [in_sz, out_sz], tf.float64,
                                 norm_init(stddev=std / np.sqrt(in_sz + out_sz)))
-            hidden = tf.matmul(input_, w)
+            bias = tf.get_variable('Bias', [1, out_sz], tf.float64,
+                                   norm_init(stddev=std / np.sqrt(1 + out_sz)))
+            hidden = tf.matmul(input_, w) + tf.matmul(self.allones_m, bias)
         if activation_fn is not None:
             return activation_fn(hidden)
         else:
@@ -100,20 +97,22 @@ class SolverMKV1:
         X = self.X0
         X_all = tf.concat([self.x_grid, X], axis=0)
         phi_X_all = self._one_time_net(X_all, 'decoupling_field'+str(0))
-        phi_prime_X_all = self.equation.sigma * tf.gradients(phi_X_all, X_all)[0]
-        Y_kolmogorov = phi_X_all[0:(self.Nx + 2),:]
-        Z_kolmogorov = phi_prime_X_all[0:(self.Nx + 2),:]
-        phi_X = phi_X_all[(self.Nx + 2):,:]
-        phi_prime_X = phi_prime_X_all[(self.Nx + 2):,:]
+        phi_prime_X_all = tf.gradients(phi_X_all, X_all)[0]
+        phi_X_kolmogorov = phi_X_all[0:(self.Nx + 2),:]
+        phi_prime_X_kolmogorov = phi_prime_X_all[0:(self.Nx + 2),:]
+        Y = phi_X_all[(self.Nx + 2):,:]
+        Z = phi_prime_X_all[(self.Nx + 2):,:]
         P = self.Px0
         self.flow_of_measure = P
-        self.Y_guess_full = phi_X
-        self.Y_real_full = phi_X
-        X_next = X + self.equation.drift_b(self.t_grid[0], X, phi_X, phi_prime_X, P) * self.h + self.dW[:, 0:1]
-        Y_next = phi_X - self.equation.driver_f(self.t_grid[0], X, phi_X, phi_prime_X, P) * self.h \
-                 + phi_prime_X * self.dW[:, 0:1]
+        self.Y_guess_full = Y
+        self.Y_real_full = Y
+        self.X_path = X
+        X_next = X + self.equation.drift_b(self.t_grid[0], X, Y, P) * self.h + self.dW[:, 0:1]
+        Y_next = Y - self.equation.driver_f(self.t_grid[0], X, Y, P) * self.h \
+                 + Z * self.dW[:, 0:1]
         P_reduced = tf.slice(P, [1, 0], [self.Nx, 1])
-        P_next_reduced = P_reduced + self.equation.kolmogorov_1d(self.t_grid[0], self.x_grid, Y_kolmogorov, Z_kolmogorov, P, self.dx, self.Nx) * self.h
+        P_next_reduced = P_reduced + self.equation.kolmogorov_1d(self.t_grid[0], self.x_grid, phi_X_kolmogorov,
+                                                                 phi_prime_X_kolmogorov, P, self.dx, self.Nx) * self.h
         P = tf.concat([tf.slice(P_next_reduced, [0, 0], [1, 1]), P_next_reduced, tf.slice(P_next_reduced, [self.Nx - 1, 0], [1, 1])], axis=0)
         X = X_next
         Y = Y_next
@@ -125,25 +124,25 @@ class SolverMKV1:
             phi_X_kolmogorov = phi_X_all[0:(self.Nx + 2), :]
             phi_prime_X_kolmogorov = phi_prime_X_all[0:(self.Nx + 2), :]
             phi_X = phi_X_all[(self.Nx + 2):, :]
+            Z = phi_prime_X_all[(self.Nx + 2):, :]
+            self.X_path = tf.concat([self.X_path, X], axis=1)
             self.Y_guess_full = tf.concat([self.Y_guess_full, phi_X], axis=1)
             self.Y_real_full = tf.concat([self.Y_real_full, Y], axis=1)
             self.flow_of_measure = tf.concat([self.flow_of_measure, P], axis=1)
             error = Y - phi_X
             self.loss = self.loss + tf.reduce_mean(error ** 2)
-            phi_prime_X = phi_prime_X_all[(self.Nx + 2):, :]
-            P = self.Px0
-            X_next = X + self.equation.drift_b(self.t_grid[0], X, phi_X, phi_prime_X, P) * self.h + self.dW[:, 0:1]
-            Y_next = phi_X - self.equation.driver_f(self.t_grid[0], X, phi_X, phi_prime_X, P) * self.h \
-                     + phi_prime_X * self.dW[:, 0:1]
+            X_next = X + self.equation.drift_b(self.t_grid[0], X, phi_X, P) * self.h + self.dW[:, 0:1]
+            Y_next = Y - self.equation.driver_f(self.t_grid[0], X, phi_X, P) * self.h \
+                     + Z * self.dW[:, 0:1]
             P_reduced = tf.slice(P, [1, 0], [self.Nx, 1])
-            P_next_reduced = P_reduced + \
-                             self.equation.kolmogorov_1d(self.t_grid[0], self.x_grid, phi_X_kolmogorov,
-                                                         phi_prime_X_kolmogorov, P, self.dx, self.Nx) * self.h
+            P_next_reduced = P_reduced + self.equation.kolmogorov_1d(self.t_grid[t], self.x_grid, phi_X_kolmogorov,
+                                                                    phi_prime_X_kolmogorov, P, self.dx, self.Nx) * self.h
             P = tf.concat([tf.slice(P_next_reduced, [0, 0], [1, 1]), P_next_reduced, tf.slice(P_next_reduced, [self.Nx - 1, 0], [1, 1])], axis=0)
             X = X_next
             Y = Y_next
         target = self.equation.terminal_g(X, P)
         error = Y - target
+        self.X_path = tf.concat([self.X_path, X], axis=1)
         self.Y_guess_full = tf.concat([self.Y_guess_full, target], axis=1)
         self.Y_real_full = tf.concat([self.Y_real_full, Y], axis=1)
         self.flow_of_measure = tf.concat([self.flow_of_measure, P], axis=1)
@@ -197,6 +196,7 @@ class SolverMKV1:
             step += 1
         self.y_real = self.sess.run(self.Y_real_full, feed_dict=feed_dict_valid)
         self.y_pred = self.sess.run(self.Y_guess_full, feed_dict=feed_dict_valid)
+        self.x_path = self.sess.run(self.X_path, feed_dict=feed_dict_valid)
         self.flow_measure = self.sess.run(self.flow_of_measure, feed_dict=feed_dict_valid)
         end_time = time.time()
         print("running time: %.3f s" % (end_time - start_time + self.time_build))
