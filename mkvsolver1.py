@@ -33,11 +33,12 @@ class SolverMKV1:
         self.x_grid = equation.x_grid
 
         # parameters for neural network and gradient descent
-        self.n_layer = 4
-        self.n_neuron = [1, 1 + 10, 1 + 10, 1]
+        self.n_layer = 3
+        #self.n_neuron = [1, 1 + 10, 1 + 10, 1]
+        self.n_neuron = [1, 1 + 5, 1]
         self.batch_size = 64
-        self.valid_size = 256
-        self.n_maxstep = 20000
+        self.valid_size = 128
+        self.n_maxstep = 25000
         self.n_displaystep = 50
         self.learning_rate = 5e-4
         self._extra_train_ops = []
@@ -67,8 +68,8 @@ class SolverMKV1:
     def _one_time_net(self, x, name):
         with tf.variable_scope(name):
             layer1 = self._one_layer(x, self.n_neuron[0], self.n_neuron[1], name='layer1')
-            layer2 = self._one_layer(layer1, self.n_neuron[1], self.n_neuron[2], name='layer2')
-            z = self._one_layer(layer2, self.n_neuron[2], self.n_neuron[3], activation_fn=None, name='final')
+            #layer2 = self._one_layer(layer1, self.n_neuron[1], self.n_neuron[2], name='layer2')
+            z = self._one_layer(layer1, self.n_neuron[1], self.n_neuron[2], activation_fn=None, name='final')
             return z
 
             # one layer in the neural network
