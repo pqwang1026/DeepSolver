@@ -2,9 +2,9 @@ import tensorflow as tf
 import numpy as np
 
 
-class MckeanVlasovEquation(object):
+class MckeanVlasovEquationArctan(object):
     def __init__(self, LxUpper, LyUpper, LxLower, LyLower, Nx, Ny):
-        self.sigma = 0.2
+        self.sigma = 0.1
         self.Nx = Nx
         self.Ny = Ny
         self.x_grid = tf.constant(np.linspace(LxLower, LxUpper, Nx + 2), dtype=tf.float64, shape=(Nx + 2, 1))
@@ -56,5 +56,47 @@ class MckeanVlasovEquation(object):
                 - z_grid_2d[2:(Nx + 2), 1:(Ny + 1)] * P[2:(Nx + 2), 0:Ny] - z_grid_2d[0:Nx, 1:(Ny + 1)] * P[0:Nx, 2:(Ny + 2)]
         term5 = tf.scalar_mul(0.25 * self.sigma / dx / dy, term5)
         return term1 + term2 + term3 + term4 + term5
+
+
+class MckeanVlasovEquationLQMFG(object):
+    def __init__(self, LxUpper, LxLower, Nx):
+        # parameters of the MFG
+        self.sigma = 0.1
+        self.a = 0.1
+        self.a_bar = 0.1
+        self.b = 0.1
+        self.beta = 0.1
+        self.n = 0.1
+        self.m = 0.1
+        self.m_bar = 0.1
+        self.q = 0.1
+        self.q_bar = 0.1
+
+        # parameters of the grid
+        self.Nx = Nx
+        self.x_grid = tf.constant(np.linspace(LxLower, LxUpper, Nx + 2), dtype=tf.float64, shape=(Nx + 2, 1))
+        self.dx = (LxUpper - LxLower) / (Nx + 1)
+
+    def expectation_x(self, P):
+        return self.dx * tf.reduce_sum(P * self.x_grid)
+
+    def second_moment_x(self, P):
+        return self.dx * tf.reduce_sum(P * (self.x_grid ** 2))
+
+    def driver_f(self, t, X, Y, P):
+        return self.a * Y + (self.m * self.m) * X + (self.m * self.m_bar) * self.expectation_x(P)
+
+    def drift_b(self, t, X, Y, P):
+        return self.a * X + self.a_bar * self.expectation_x(P) - (self.b * self.b / self.n) * Y + self.beta
+
+    def terminal_g(self, X, P):
+        return self.q * self.q * X + self.q * self.q_bar * self.expectation_x(P)
+
+    def kolmogorov_1d(self, t, x_grid, phi_x_grid, phi_x_prime_grid, P, dx, Nx):
+        term1 = tf.scalar_mul(-1.0 / dx, self.drift_b(t, x_grid[1:(Nx + 1), :], phi_x_grid[1:(Nx + 1), :], P) * (P[2:(Nx + 2), :] - P[1:(Nx + 1), :])) \
+                -(self.a - (self.b * self.b / self.n) * phi_x_prime_grid[1:(Nx + 1), :]) * P[1:(Nx + 1), :]
+        term2 = P[2:(Nx + 2), :] + P[0:Nx, :] - 2.0 * P[1:(Nx + 1), :]
+        term2 = tf.scalar_mul(0.25 * self.sigma * self.sigma / dx / dx, term2)
+        return term1 + term2
 
 
