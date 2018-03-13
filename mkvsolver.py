@@ -9,7 +9,7 @@ from tensorflow import random_uniform_initializer as unif_init
 from tensorflow import constant_initializer as const_init
 
 
-class SolverMKV:
+class SolverMKV(object):
     def __init__(self, sess, equation, T, Nt, NDirac, x0_mean, x0_var):
         # initial condition and horizon
         self.x0_mean = x0_mean

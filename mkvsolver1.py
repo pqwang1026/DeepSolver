@@ -33,9 +33,9 @@ class SolverMKV1:
         self.x_grid = equation.x_grid
 
         # parameters for neural network and gradient descent
-        self.n_layer = 3
-        #self.n_neuron = [1, 1 + 10, 1 + 10, 1]
-        self.n_neuron = [1, 1 + 5, 1]
+        self.n_layer = 4
+        self.n_neuron = [1, 1 + 10, 1 + 10, 1]
+        #self.n_neuron = [1, 1 + 1, 1]
         self.batch_size = 64
         self.valid_size = 128
         self.n_maxstep = 25000
@@ -68,8 +68,8 @@ class SolverMKV1:
     def _one_time_net(self, x, name):
         with tf.variable_scope(name):
             layer1 = self._one_layer(x, self.n_neuron[0], self.n_neuron[1], name='layer1')
-            #layer2 = self._one_layer(layer1, self.n_neuron[1], self.n_neuron[2], name='layer2')
-            z = self._one_layer(layer1, self.n_neuron[1], self.n_neuron[2], activation_fn=None, name='final')
+            layer2 = self._one_layer(layer1, self.n_neuron[1], self.n_neuron[2], name='layer2')
+            z = self._one_layer(layer1, self.n_neuron[2], self.n_neuron[3], activation_fn=None, name='final')
             return z
 
             # one layer in the neural network
@@ -117,7 +117,7 @@ class SolverMKV1:
         P = tf.concat([tf.slice(P_next_reduced, [0, 0], [1, 1]), P_next_reduced, tf.slice(P_next_reduced, [self.Nx - 1, 0], [1, 1])], axis=0)
         X = X_next
         Y = Y_next
-        for t in range(1, self.Nt - 1):
+        for t in range(1, self.Nt):
             print(t)
             X_all = tf.concat([self.x_grid, X], axis=0)
             phi_X_all = self._one_time_net(X_all, 'decoupling_field'+str(t))
